@@ -2,21 +2,20 @@ from data import *
 import os
 import argparse
 
-# parser = argparse.ArgumentParser(
-#                     prog='VMTranslator.py',
-#                     description='Converts VM code to assembly code.',
-#                     epilog='More information on https://github.com/anasahmd/VMTranslator/')
+parser = argparse.ArgumentParser(
+                    prog='VMTranslator.py',
+                    description='Converts VM code to assembly code.',
+                    epilog='More information on https://github.com/anasahmd/VMTranslator/')
 
-# parser.add_argument('input_path', help='Input VM File or Folder')
+parser.add_argument('input_path', help='Input VM File or Folder')
 
-# args = parser.parse_args()
+args = parser.parse_args()
 
 class JackTokenizer:
   
   def __init__(self, input_line = '') -> None:
     self.current_token = ''
     self.token_type = None
-    self.key_word = None
     self.multi_comment = False
     self.input_line = self.remove_comments(input_line)
     
@@ -58,20 +57,18 @@ class JackTokenizer:
       else:
         return line
 
-  # !!!
   # Checks if there are more tokens, might not need it
-  def hasMoreTokens(self):
-    pass
+  def hasMoreTokens(self) -> bool:
+    if self.input_line:
+      return True
+    else:
+      return False
   
   # called if hasMoreTokens is true
   def advance(self):
     self.current_token = ''
     self.token_type = None 
-    self.key_word = None
     for index, char in enumerate(self.input_line):
-      print(char)
-      print(self.current_token)
-      print(self.token_type)
       if self.token_type == None:
         if char == '"':
           self.token_type = 'STRING_CONST'
@@ -92,7 +89,6 @@ class JackTokenizer:
         if char == ' ' or char in symbol:
           if self.current_token in keyword:
             self.token_type = 'KEYWORD'
-            self.key_word = self.current_token.upper()
           else:
             self.token_type = 'IDENTIFIER'
           self.input_line = self.input_line[index:]
@@ -100,17 +96,17 @@ class JackTokenizer:
         else:
           self.current_token += char
         
-      elif self.token_type == 'integerConstant':
-        if char == ' ':
+      elif self.token_type == 'INT_CONST':
+        if not char.isnumeric() & char.isalpha():
           self.input_line = self.input_line[index:]
           return
-        elif not char.isnumeric():
+        elif char.isalpha():
           print('Invalid Code')
           exit(1)
         else:
           self.current_token += char
       
-      elif self.token_type == 'stringConstant':
+      elif self.token_type == 'STRING_CONST':
         if char == '"':
           self.input_line = self.input_line[index + 1:]
           return
@@ -123,7 +119,7 @@ class JackTokenizer:
 
   # Returns the keyword as a constant
   def keyWord(self):
-    return self.key_word
+    return self.current_token
 
   def symbol(self):
     return self.current_token
@@ -132,14 +128,80 @@ class JackTokenizer:
     return self.current_token
 
   def intVal(self):
-    return int(self.current_token)
+    return self.current_token
 
   def stringVal(self):
     return self.current_token
 
+class CompilationEngine:
+  
+  def __init__(self) -> None:
+    pass
+  
+  # !!!
+  def compileClass():
+    pass
+  
+  # !!!
+  def compileClassVarDec():
+    pass
+  
+  # !!!
+  def compileSubroutine():
+    pass 
+  
+  # !!!
+  def compileParameterList():
+    pass
+  
+  # !!!
+  def compileSubroutineBody():
+    pass
+  
+  # !!!
+  def compileVarDec():
+    pass
+  
+  # !!!
+  def compileStatements():
+    pass 
+  
+  # !!!
+  def compileLet():
+    pass
+  
+  # !!!
+  def compileIf():
+    pass
+  
+  # !!!
+  def compileWhile():
+    pass 
+  
+  # !!!
+  def compileDo():
+    pass 
+  
+  # !!!
+  def compileReturn():
+    pass 
+  
+  # !!!
+  def compileExpression():
+    pass 
+  
+  # !!!
+  def compileTerm():
+    pass
+  
+  # !!!
+  def compileExpressionList():
+    pass
+  
+
 class JackAnalyzer():
 
-  def analyze(self) -> None:
+  def analyze() -> None:
     # If the input is a file
     if os.path.isfile(args.input_path):
       # Error if the input file is not a jack file 
@@ -150,12 +212,32 @@ class JackAnalyzer():
       else:
         xml_file_name = args.input_path.replace('.jack', 'T.xml')
         xml_file = open(xml_file_name, 'w')
+        
         # Initialize JackTokenizer
-        with open(args.input_file, 'r') as file:
+        tokenizer = JackTokenizer()
+        with open(args.input_path, 'r') as file:
+          xml_file.write('<tokens>\n')
           for line in file:
-            tokenizer = JackTokenizer(line)
-            tokenizer.advance()
-                
+            tokenizer.add_new_line(line)
+            while tokenizer.hasMoreTokens():
+              tokenizer.advance()
+              if tokenizer.tokenType() == 'KEYWORD':
+                xml_file.writelines(['<keyword>', tokenizer.keyWord(), '</keyword>', '\n'])
+              elif tokenizer.tokenType() == 'SYMBOL':
+                alternate_symbol = {'<': '&lt;', '>': '&gt;', '"': '&quot;', '&': '&amp;'}
+                symbol = tokenizer.symbol()
+                if alternate_symbol.get(symbol):
+                  xml_file.writelines(['<symbol>', alternate_symbol[symbol], '</symbol>', '\n'])
+                else:
+                  xml_file.writelines(['<symbol>', symbol, '</symbol>', '\n'])
+              
+              elif tokenizer.tokenType() == 'IDENTIFIER':
+                xml_file.writelines(['<identifier>', tokenizer.identifier(), '</identifier>', '\n'])
+              elif tokenizer.tokenType() == 'INT_CONST':
+                xml_file.writelines(['<integerConstant>', tokenizer.intVal(), '</integerConstant>', '\n'])
+              elif tokenizer.tokenType() == 'STRING_CONST':
+                xml_file.writelines(['<stringConstant>', tokenizer.stringVal(), '</stringConstant>', '\n'])
+          xml_file.write('</tokens>\n')
         xml_file.close()
         pass
 
@@ -182,39 +264,10 @@ class JackAnalyzer():
     else:
       print('Wrong input path provided')
       exit(1)
-
-  # remove comments from 
-  # def remove_comment(self, string: str) -> str:
-  #   comment_index = string.find('//')
-  #   # Removes inline comment
-  #   inline_removed = string
-  #   if comment_index != -1:
-  #     inline_removed = string[:comment_index]
-
-  #   multi_comment_index = inline_removed.find('/*')
-    
-  #   # Sets multi comment to true to ignore all code until "*/"
-  #   if multi_comment_index != -1:
-  #     self.multi_comment = True
-    
-  #   multi_comment_index_end = inline_removed.find('*/')
-
-  #   if self.multi_comment:
-  #     start_index = 0
-  #     end_index = None
-  #     if multi_comment_index != -1:
-  #       start_index = multi_comment_index
-      
-  #     if multi_comment_index_end != -1:
-  #       self.multi_comment = False
-  #       end_index = multi_comment_index_end
-
-  #     return inline_removed[start_index:end_index]
-    
-  #   return inline_removed
   
 def main():
   pass
       
 if __name__ == '__main__':
-  main()
+  analyzer = JackAnalyzer
+  analyzer.analyze()
