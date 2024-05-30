@@ -24,10 +24,9 @@ class JackTokenizer:
     self.input_line = self.remove_comments(line)
     
   def remove_comments(self, line):
-    stripped_code = line.strip()
-    removed_multi_line = self.remove_multi_line_comment(stripped_code)
+    removed_multi_line = self.remove_multi_line_comment(line)
     removed_inline = self.remove_inline_comment(removed_multi_line)
-    return removed_inline
+    return removed_inline.strip()
   
   def remove_inline_comment(self, line) -> str:
     comment_index = line.find('//')
@@ -97,12 +96,12 @@ class JackTokenizer:
           self.current_token += char
         
       elif self.token_type == 'INT_CONST':
-        if not char.isnumeric() & char.isalpha():
-          self.input_line = self.input_line[index:]
-          return
-        elif char.isalpha():
+        if char.isalpha():
           print('Invalid Code')
           exit(1)
+        if not char.isnumeric():
+          self.input_line = self.input_line[index:]
+          return
         else:
           self.current_token += char
       
@@ -135,8 +134,20 @@ class JackTokenizer:
 
 class CompilationEngine:
   
-  def __init__(self) -> None:
-    pass
+  def __init__(self, tokenizer: JackTokenizer, output_file) -> None:
+    self.tokenizer = tokenizer
+    self.output_file = output_file
+  
+  def process(self, string: str):
+    if (self.tokenizer.current_token == string):
+      self.printXMLToken(string)
+    else:
+      print('Syntax Error')
+    
+    self.tokenizer.advance()
+      
+  def printXMLToken(self, string):
+    self.output_file.write(['<', string, '>'])
   
   # !!!
   def compileClass():
@@ -175,9 +186,17 @@ class CompilationEngine:
     pass
   
   # !!!
-  def compileWhile():
-    pass 
-  
+  def compileWhile(self):
+    self.output_file.write('<whileStatement>')
+    self.process('while')
+    self.process('(')
+    self.compileExpression()
+    self.process(')')
+    self.process('{')
+    self.compileStatements()
+    self.process('}')
+    self.output_file.write('</whileStatement>')
+    
   # !!!
   def compileDo():
     pass 
@@ -200,8 +219,41 @@ class CompilationEngine:
   
 
 class JackAnalyzer():
+  def __init__(self) -> None:
+    pass
+  
+  def handleFile(self, input_path):
+    xml_file_name = input_path.replace('.jack', 'T.xml')
+    xml_file = open(xml_file_name, 'w')
+    
+    # Initialize JackTokenizer
+    tokenizer = JackTokenizer()
+    with open(input_path, 'r') as file:
+      xml_file.write('<tokens>\n')
+      for line in file:
+        tokenizer.add_new_line(line)
+        while tokenizer.hasMoreTokens():
+          tokenizer.advance()
+          if tokenizer.tokenType() == 'KEYWORD':
+            xml_file.writelines(['<keyword> ', tokenizer.keyWord(), ' </keyword>', '\n'])
+          elif tokenizer.tokenType() == 'SYMBOL':
+            alternate_symbol = {'<': '&lt;', '>': '&gt;', '"': '&quot;', '&': '&amp;'}
+            symbol = tokenizer.symbol()
+            if alternate_symbol.get(symbol):
+              xml_file.writelines(['<symbol> ', alternate_symbol[symbol], ' </symbol>', '\n'])
+            else:
+              xml_file.writelines(['<symbol> ', symbol, ' </symbol>', '\n'])
+          
+          elif tokenizer.tokenType() == 'IDENTIFIER':
+            xml_file.writelines(['<identifier> ', tokenizer.identifier(), ' </identifier>', '\n'])
+          elif tokenizer.tokenType() == 'INT_CONST':
+            xml_file.writelines(['<integerConstant> ', tokenizer.intVal(), ' </integerConstant>', '\n'])
+          elif tokenizer.tokenType() == 'STRING_CONST':
+            xml_file.writelines(['<stringConstant> ', tokenizer.stringVal(), ' </stringConstant>', '\n'])
+      xml_file.write('</tokens>\n')
+    xml_file.close()
 
-  def analyze() -> None:
+  def analyze(self) -> None:
     # If the input is a file
     if os.path.isfile(args.input_path):
       # Error if the input file is not a jack file 
@@ -210,57 +262,17 @@ class JackAnalyzer():
         print( "Provided file is not a VM file")
         exit(1)
       else:
-        xml_file_name = args.input_path.replace('.jack', 'T.xml')
-        xml_file = open(xml_file_name, 'w')
+        self.handleFile(args.input_path)
         
-        # Initialize JackTokenizer
-        tokenizer = JackTokenizer()
-        with open(args.input_path, 'r') as file:
-          xml_file.write('<tokens>\n')
-          for line in file:
-            tokenizer.add_new_line(line)
-            while tokenizer.hasMoreTokens():
-              tokenizer.advance()
-              if tokenizer.tokenType() == 'KEYWORD':
-                xml_file.writelines(['<keyword>', tokenizer.keyWord(), '</keyword>', '\n'])
-              elif tokenizer.tokenType() == 'SYMBOL':
-                alternate_symbol = {'<': '&lt;', '>': '&gt;', '"': '&quot;', '&': '&amp;'}
-                symbol = tokenizer.symbol()
-                if alternate_symbol.get(symbol):
-                  xml_file.writelines(['<symbol>', alternate_symbol[symbol], '</symbol>', '\n'])
-                else:
-                  xml_file.writelines(['<symbol>', symbol, '</symbol>', '\n'])
-              
-              elif tokenizer.tokenType() == 'IDENTIFIER':
-                xml_file.writelines(['<identifier>', tokenizer.identifier(), '</identifier>', '\n'])
-              elif tokenizer.tokenType() == 'INT_CONST':
-                xml_file.writelines(['<integerConstant>', tokenizer.intVal(), '</integerConstant>', '\n'])
-              elif tokenizer.tokenType() == 'STRING_CONST':
-                xml_file.writelines(['<stringConstant>', tokenizer.stringVal(), '</stringConstant>', '\n'])
-          xml_file.write('</tokens>\n')
-        xml_file.close()
-        pass
 
     # If the input is a folder
     elif os.path.isdir(args.input_path):
-      # if args.input_path[-1] != '/':
-      #   args.input_path = args.input_path + '/'
+      if args.input_path[-1] != '/':
+        args.input_path = args.input_path + '/'
 
-      # asm_file_name = args.input_path + args.input_path.split('/')[-2] + '.asm'
-      # asm_file = open(asm_file_name, 'w')
-      # # Initialize CodeWriter
-      # codewriter = CodeWriter(asm_file)
-
-      # for file in os.listdir(args.input_path):
-      #   if ".vm" in file:
-      #     input_file = open(args.input_path + file, "r")
-      #     codewriter.setFileName(input_file)
-      #     parser = Parser(input_file, codewriter)
-      #     parser.parse()
-
-      # codewriter.writeInfiniteLoop()
-      # asm_file.close()
-      pass
+      for file in os.listdir(args.input_path):
+        if ".jack" in file:
+          self.handleFile(args.input_path + file)
     else:
       print('Wrong input path provided')
       exit(1)
@@ -269,5 +281,5 @@ def main():
   pass
       
 if __name__ == '__main__':
-  analyzer = JackAnalyzer
+  analyzer = JackAnalyzer()
   analyzer.analyze()
