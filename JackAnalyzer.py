@@ -13,15 +13,22 @@ args = parser.parse_args()
 
 class JackTokenizer:
   
-  def __init__(self, input_line = '') -> None:
+  def __init__(self, input_file) -> None:
+    self.input_file = input_file
     self.current_token = ''
     self.token_type = None
     self.multi_comment = False
-    self.input_line = self.remove_comments(input_line)
-    
+    self.current_line = ''
+    self.add_new_line()
+    self.advance()
+        
   # Assume that input_line is empty
-  def add_new_line(self, line):
-    self.input_line = self.remove_comments(line)
+  def add_new_line(self):
+    while not self.hasMoreTokens():
+      new_line = self.input_file.readline()
+      if new_line == '':
+        break
+      self.current_line = self.remove_comments(new_line)
     
   def remove_comments(self, line):
     removed_multi_line = self.remove_multi_line_comment(line)
@@ -58,16 +65,19 @@ class JackTokenizer:
 
   # Checks if there are more tokens, might not need it
   def hasMoreTokens(self) -> bool:
-    if self.input_line:
+    if self.current_line:
       return True
     else:
       return False
   
   # called if hasMoreTokens is true
   def advance(self):
+    if not self.hasMoreTokens():
+      self.add_new_line()
+      
     self.current_token = ''
     self.token_type = None 
-    for index, char in enumerate(self.input_line):
+    for index, char in enumerate(self.current_line):
       if self.token_type == None:
         if char == '"':
           self.token_type = 'STRING_CONST'
@@ -77,7 +87,7 @@ class JackTokenizer:
         elif char in symbol:
           self.current_token = char
           self.token_type = 'SYMBOL'
-          self.input_line = self.input_line[index + 1:]
+          self.current_line = self.current_line[index + 1:]
           return
         elif char.isalpha() or char == '_':
           self.current_token = char
@@ -90,7 +100,7 @@ class JackTokenizer:
             self.token_type = 'KEYWORD'
           else:
             self.token_type = 'IDENTIFIER'
-          self.input_line = self.input_line[index:]
+          self.current_line = self.current_line[index:]
           return
         else:
           self.current_token += char
@@ -100,14 +110,14 @@ class JackTokenizer:
           print('Invalid Code')
           exit(1)
         if not char.isnumeric():
-          self.input_line = self.input_line[index:]
+          self.current_line = self.current_line[index:]
           return
         else:
           self.current_token += char
       
       elif self.token_type == 'STRING_CONST':
         if char == '"':
-          self.input_line = self.input_line[index + 1:]
+          self.current_line = self.current_line[index + 1:]
           return
         else:
           self.current_token += char
@@ -134,9 +144,10 @@ class JackTokenizer:
 
 class CompilationEngine:
   
-  def __init__(self, tokenizer: JackTokenizer, output_file) -> None:
-    self.tokenizer = tokenizer
+  def __init__(self, input_file, output_file) -> None:
+    self.input_file = input_file
     self.output_file = output_file
+    self.tokenizer = JackTokenizer(input_file)
   
   def process(self, string: str):
     # Consider changing current token accessor
@@ -144,6 +155,8 @@ class CompilationEngine:
       self.printXMLToken()
     else:
       print('Syntax Error')
+      print(string)
+      print(self.tokenizer.current_token)
       exit(1)
     
       
@@ -171,19 +184,19 @@ class CompilationEngine:
     self.tokenizer.advance()
   
   def compileClass(self):
-    self.output_file.write('<class>')
+    self.output_file.write('<class>\n')
     self.process('class')
     self.printXMLToken()
     self.process('{')
     while self.tokenizer.current_token in ('static', 'field'):
       self.compileClassVarDec()
-    while self.tokenizer.current_token in ('function', 'function', 'method'):
+    while self.tokenizer.current_token in ('constructor', 'function', 'method'):
       self.compileSubroutine()
     self.process('}')
-    self.output_file.write('</class>')
+    self.output_file.write('</class>\n')
     
   def compileClassVarDec(self):
-    self.output_file.write('<classVarDec>')
+    self.output_file.write('<classVarDec>\n')
     if self.tokenizer.current_token in ('static', 'field'):
       self.printXMLToken()
       self.printXMLToken()
@@ -192,10 +205,10 @@ class CompilationEngine:
         self.process(',')
         self.printXMLToken()
       self.process(';')
-    self.output_file.write('</classVarDec>')
+    self.output_file.write('</classVarDec>\n')
 
   def compileSubroutine(self):
-    self.output_file.write('<subroutineDec>')
+    self.output_file.write('<subroutineDec>\n')
     if self.tokenizer.current_token in ('constructor', 'function', 'method'):
       self.printXMLToken()
       self.printXMLToken()
@@ -204,10 +217,10 @@ class CompilationEngine:
       self.compileParameterList()
       self.process(')')
       self.compileSubroutineBody()
-    self.output_file.write('</subroutineDec>')  
+    self.output_file.write('</subroutineDec>\n')  
   
   def compileParameterList(self):
-    self.output_file.write('<parameterList>')
+    self.output_file.write('<parameterList>\n')
     # Checks if parameterList is not empty
     if self.tokenizer.current_token != ')':
       self.printXMLToken()
@@ -216,29 +229,30 @@ class CompilationEngine:
         self.printXMLToken()
         self.printXMLToken()
         self.printXMLToken()
-    self.output_file.write('</parameterList>')
+    self.output_file.write('</parameterList>\n')
 
   def compileSubroutineBody(self):
-    self.output_file.write('<subroutineBody>')
+    self.output_file.write('<subroutineBody>\n')
     self.process('{')
     while self.tokenizer.current_token == 'var':
       self.compileVarDec()
     self.compileStatements()
     self.process('}')
-    self.output_file.write('</subroutineBody>')
+    self.output_file.write('</subroutineBody>\n')
 
   def compileVarDec(self):
-    self.output_file.write('<varDec>')
+    self.output_file.write('<varDec>\n')
+    self.printXMLToken()
     self.printXMLToken()
     self.printXMLToken()
     while self.tokenizer.current_token == ',':
       self.printXMLToken()
       self.printXMLToken()
     self.process(';')
-    self.output_file.write('</varDec>')
+    self.output_file.write('</varDec>\n')
   
   def compileStatements(self):
-    self.output_file.write('<statements>')
+    self.output_file.write('<statements>\n')
     while self.tokenizer.current_token in ('let', 'if', 'while', 'do', 'return'):
       if self.tokenizer.current_token == 'let':
         self.compileLet()
@@ -250,10 +264,10 @@ class CompilationEngine:
         self.compileDo()
       elif self.tokenizer.current_token == 'return':
         self.compileReturn()     
-    self.output_file.write('</statements>')
+    self.output_file.write('</statements>\n')
   
   def compileLet(self):
-    self.output_file.write('<let>')
+    self.output_file.write('<letStatement>\n')
     self.process('let')
     self.printXMLToken()
     if self.tokenizer.current_token == '[':
@@ -263,10 +277,10 @@ class CompilationEngine:
     self.process('=')
     self.compileExpression()
     self.process(';')
-    self.output_file.write('</let>')
+    self.output_file.write('</letStatement>\n')
 
   def compileIf(self):
-    self.output_file.write('<ifStatement>')
+    self.output_file.write('<ifStatement>\n')
     self.process('if')
     self.process('(')
     self.compileExpression()
@@ -280,10 +294,10 @@ class CompilationEngine:
       self.process('{')
       self.compileStatements()
       self.process('}')
-    self.output_file.write('<ifStatement>')
+    self.output_file.write('</ifStatement>\n')
       
   def compileWhile(self):
-    self.output_file.write('<whileStatement>')
+    self.output_file.write('<whileStatement>\n')
     self.process('while')
     self.process('(')
     self.compileExpression()
@@ -291,39 +305,77 @@ class CompilationEngine:
     self.process('{')
     self.compileStatements()
     self.process('}')
-    self.output_file.write('</whileStatement>')
+    self.output_file.write('</whileStatement>\n')
     
   def compileDo(self):
-    self.output_file.write('<doStatement>')
+    self.output_file.write('<doStatement>\n')
     self.process('do')
-    self.compileExpression()
+    self.printXMLToken()
+    if self.tokenizer.current_token == '.':
+      self.printXMLToken()
+      self.printXMLToken()
+    self.process('(')
+    self.compileExpressionList()
+    self.process(')')
     self.process(';')
-    self.output_file.write('</doStatement>')
+    self.output_file.write('</doStatement>\n')
   
   def compileReturn(self):
-    self.output_file.write('<returnStatement>')
+    self.output_file.write('<returnStatement>\n')
     self.process('return')
     if (self.tokenizer.current_token != ';'):
       self.compileExpression()
     self.process(';')
-    self.output_file.write('</returnStatement>')
+    self.output_file.write('</returnStatement>\n')
   
   def compileExpression(self):
-    self.output_file.write('<expression>')
+    self.output_file.write('<expression>\n')
     self.compileTerm()
     while self.tokenizer.current_token in ('+', '-', '*', '/', '&', '|', '<', '>', '='):
       self.printXMLToken()
       self.compileTerm()
-    self.output_file.write('</expression>')
+    self.output_file.write('</expression>\n')
 
   def compileTerm(self):
-    self.output_file.write('<term>')
-    self.printXMLToken()
-    self.output_file.write('</term>')
+    self.output_file.write('<term>\n')
+    if self.tokenizer.tokenType() == 'IDENTIFIER':
+      self.printXMLToken()
+      if self.tokenizer.current_token == '.':
+        self.printXMLToken()
+        self.printXMLToken()
+        self.process('(')
+        self.compileExpressionList()
+        self.process(')')
+      elif self.tokenizer.current_token == '(':
+        self.printXMLToken('(')
+        self.compileExpressionList()
+        self.process(')')
+      elif self.tokenizer.current_token == '[':
+        self.printXMLToken()
+        self.compileExpression()
+        self.process(']')
+        
+    elif self.tokenizer.current_token == '(':
+      self.printXMLToken()
+      self.compileExpression()
+      self.process(')')
+    
+    elif self.tokenizer.current_token in ('-', '~'):
+      self.printXMLToken()
+      self.compileTerm()
+      
+    elif self.tokenizer.tokenType() in ('INT_CONST', 'STRING_CONST', 'KEYWORD'):
+      self.printXMLToken()
+    
+    else:
+      print('Syntax Error')
+      exit(1)
+      
+    self.output_file.write('</term>\n')
   
   def compileExpressionList(self):
     no_of_expressions = 0
-    self.output_file.write('<expressionList>')
+    self.output_file.write('<expressionList>\n')
     if (self.tokenizer.current_token != ')'):
       self.compileExpression()
       no_of_expressions += 1
@@ -331,7 +383,7 @@ class CompilationEngine:
         self.printXMLToken()
         self.compileExpression()
         no_of_expressions += 1
-    self.output_file.write('</expressionList>')
+    self.output_file.write('</expressionList>\n')
     return no_of_expressions
     
 
@@ -342,34 +394,13 @@ class JackAnalyzer():
     pass
   
   def handleFile(self, input_path):
-    xml_file_name = input_path.replace('.jack', 'T.xml')
+    xml_file_name = input_path.replace('.jack', '.xml')
     xml_file = open(xml_file_name, 'w')
+    input_file = open(input_path, "r")
     
-    # Initialize JackTokenizer
-    tokenizer = JackTokenizer()
-    with open(input_path, 'r') as file:
-      xml_file.write('<tokens>\n')
-      for line in file:
-        tokenizer.add_new_line(line)
-        while tokenizer.hasMoreTokens():
-          tokenizer.advance()
-          # if tokenizer.tokenType() == 'KEYWORD':
-          #   xml_file.writelines(['<keyword> ', tokenizer.keyWord(), ' </keyword>', '\n'])
-          # elif tokenizer.tokenType() == 'SYMBOL':
-          #   alternate_symbol = {'<': '&lt;', '>': '&gt;', '"': '&quot;', '&': '&amp;'}
-          #   symbol = tokenizer.symbol()
-          #   if alternate_symbol.get(symbol):
-          #     xml_file.writelines(['<symbol> ', alternate_symbol[symbol], ' </symbol>', '\n'])
-          #   else:
-          #     xml_file.writelines(['<symbol> ', symbol, ' </symbol>', '\n'])
-          
-          # elif tokenizer.tokenType() == 'IDENTIFIER':
-          #   xml_file.writelines(['<identifier> ', tokenizer.identifier(), ' </identifier>', '\n'])
-          # elif tokenizer.tokenType() == 'INT_CONST':
-          #   xml_file.writelines(['<integerConstant> ', tokenizer.intVal(), ' </integerConstant>', '\n'])
-          # elif tokenizer.tokenType() == 'STRING_CONST':
-          #   xml_file.writelines(['<stringConstant> ', tokenizer.stringVal(), ' </stringConstant>', '\n'])
-      xml_file.write('</tokens>\n')
+    compilation_engine = CompilationEngine(input_file, xml_file)
+    compilation_engine.compileClass()
+    
     xml_file.close()
 
   def analyze(self) -> None:
