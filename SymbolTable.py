@@ -62,7 +62,7 @@ class SymbolTable():
     elif name in self.class_table:
       return self.class_table[name][0]
     else:
-      print(name 'not defined')
+      print(name + 'not defined')
       exit(1)
   
   def indexOf(self, name):
@@ -71,5 +71,5 @@ class SymbolTable():
     elif name in self.class_table:
       return self.class_table[name][2]
     else:
-      print(name 'not defined')
+      print(name + 'not defined')
       exit(1)

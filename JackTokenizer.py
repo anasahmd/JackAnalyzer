@@ -6,6 +6,8 @@ class JackTokenizer:
     self.input_file = input_file
     self.current_token = ''
     self.token_type = None
+    self.next_token = ''
+    self.next_token_type = None
     self.multi_comment = False
     self.current_line = ''
     self.add_new_line()
@@ -58,7 +60,54 @@ class JackTokenizer:
       return True
     else:
       return False
-  
+    
+  def peek(self):
+    if not self.hasMoreTokens():
+      self.add_new_line()
+      
+    self.next_token = ''
+    self.next_token_type = None 
+    for index, char in enumerate(self.current_line):
+      if self.next_token_type == None:
+        if char == '"':
+          self.next_token_type = 'STRING_CONST'
+        elif char.isnumeric():
+          self.next_token = char
+          self.next_token_type = 'INT_CONST'
+        elif char in symbol:
+          self.next_token = char
+          self.next_token_type = 'SYMBOL'
+          return
+        elif char.isalpha() or char == '_':
+          self.next_token = char
+          self.next_token_type = 'idorkey'
+      
+      # If token type is not None
+      elif self.next_token_type == 'idorkey':
+        if char == ' ' or char in symbol:
+          if self.next_token in keyword:
+            self.next_token_type = 'KEYWORD'
+          else:
+            self.next_token_type = 'IDENTIFIER'
+          return
+        else:
+          self.next_token += char
+        
+      elif self.next_token_type == 'INT_CONST':
+        if char.isalpha():
+          print('Invalid Code')
+          exit(1)
+        if not char.isnumeric():
+          return
+        else:
+          self.next_token += char
+      
+      elif self.next_token_type == 'STRING_CONST':
+        if char == '"':
+          return
+        else:
+          self.next_token += char
+    
   # called if hasMoreTokens is true
   def advance(self):
     if not self.hasMoreTokens():
@@ -110,6 +159,7 @@ class JackTokenizer:
           return
         else:
           self.current_token += char
+        
   
   # returns the type of current token
   def tokenType(self):
@@ -123,7 +173,7 @@ class JackTokenizer:
     return self.current_token
 
   def identifier(self):
-    return self.current_token + self.symbol_table[self.current_token]
+    return self.current_token
 
   def intVal(self):
     return self.current_token 

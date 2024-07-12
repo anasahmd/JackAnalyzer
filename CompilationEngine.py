@@ -8,6 +8,7 @@ class CompilationEngine:
     self.output_file = output_file
     self.tokenizer = JackTokenizer(input_file)
     self.symbol_table = SymbolTable()
+    self.class_name = None
   
   def process(self, string: str):
     # Consider changing current token accessor
@@ -20,7 +21,7 @@ class CompilationEngine:
       exit(1)
     
       
-  def printXMLToken(self):
+  def printXMLToken(self, category=None, index=None, usage=None):
     if self.tokenizer.tokenType() == 'KEYWORD':
       self.output_file.writelines(['<keyword> ', self.tokenizer.keyWord(), ' </keyword>', '\n'])
       
@@ -33,7 +34,14 @@ class CompilationEngine:
         self.output_file.writelines(['<symbol> ', symbol, ' </symbol>', '\n'])
     
     elif self.tokenizer.tokenType() == 'IDENTIFIER':
-      self.output_file.writelines(['<identifier> ', self.tokenizer.identifier(), ' </identifier>', '\n'])
+      self.output_file.write('<identifier>\n')
+      self.output_file.writelines(['<name>', self.tokenizer.identifier(), '</name>', '\n'])
+      self.output_file.writelines(['<category>', str(category), '</category>', '\n'])
+      if index != None:
+        self.output_file.writelines(['<index>', str(index), '</index>', '\n'])
+      self.output_file.writelines(['<usage>', str(usage), '</usage>', '\n'])
+      self.output_file.write('</identifier>\n')
+
       
     elif self.tokenizer.tokenType() == 'INT_CONST':
       self.output_file.writelines(['<integerConstant> ', self.tokenizer.intVal(), ' </integerConstant>', '\n'])
@@ -47,7 +55,8 @@ class CompilationEngine:
   def compileClass(self):
     self.output_file.write('<class>\n')
     self.process('class')
-    self.printXMLToken()
+    self.class_name = self.tokenizer.current_token
+    self.printXMLToken('class', None, 'declared')
     self.process('{')
     while self.tokenizer.current_token in ('static', 'field'):
       self.compileClassVarDec()
@@ -66,21 +75,25 @@ class CompilationEngine:
       self.printXMLToken()
       name = self.tokenizer.current_token
       self.symbol_table.define(name, type, kind)
-      self.printXMLToken()
+      index = self.symbol_table.indexOf(name)
+      self.printXMLToken(kind.lower(), index, 'declared')
       while self.tokenizer.current_token == ',':
         self.process(',')
         name = self.tokenizer.current_token
         self.symbol_table.define(name, type, kind)
-        self.printXMLToken()
+        index = self.symbol_table.indexOf(name)
+        self.printXMLToken(kind.lower(), index, 'declared')
       self.process(';')
     self.output_file.write('</classVarDec>\n')
 
   def compileSubroutine(self):
     self.output_file.write('<subroutineDec>\n')
     if self.tokenizer.current_token in ('constructor', 'function', 'method'):
+      if self.tokenizer.current_token == 'method':
+        self.symbol_table.define('this', self.class_name, 'ARG')
       self.printXMLToken()
       self.printXMLToken()
-      self.printXMLToken()
+      self.printXMLToken('subroutine', None, 'declared')
       self.process('(')
       self.compileParameterList()
       self.process(')')
@@ -95,15 +108,17 @@ class CompilationEngine:
       type = self.tokenizer.current_token
       self.printXMLToken()
       name = self.tokenizer.current_token
-      self.printXMLToken()
       self.symbol_table.define(name, type, 'ARG')
+      index = self.symbol_table.indexOf(name)
+      self.printXMLToken('arg', index, 'declared')
       while self.tokenizer.current_token == ',':
         self.printXMLToken()
         type = self.tokenizer.current_token
         self.printXMLToken()
         name = self.tokenizer.current_token
         self.symbol_table.define(name, type, 'ARG')
-        self.printXMLToken()
+        index = self.symbol_table.indexOf(name)
+        self.printXMLToken('arg', index, 'declared')
     self.output_file.write('</parameterList>\n')
 
   def compileSubroutineBody(self):
@@ -122,12 +137,14 @@ class CompilationEngine:
     self.printXMLToken()
     name = self.tokenizer.current_token
     self.symbol_table.define(name, type, 'VAR')
-    self.printXMLToken()
+    index = self.symbol_table.indexOf(name)
+    self.printXMLToken(type, index, 'declared')
     while self.tokenizer.current_token == ',':
       self.printXMLToken()
       name = self.tokenizer.current_token
       self.symbol_table.define(name, type, 'VAR')
-      self.printXMLToken()
+      index = self.symbol_table.indexOf(name)
+      self.printXMLToken('type', index, 'declared')
     self.process(';')
     self.output_file.write('</varDec>\n')
   
@@ -149,7 +166,9 @@ class CompilationEngine:
   def compileLet(self):
     self.output_file.write('<letStatement>\n')
     self.process('let')
-    self.printXMLToken()
+    kind = self.symbol_table.kindOf(self.tokenizer.current_token)
+    index = self.symbol_table.indexOf(self.tokenizer.current_token)
+    self.printXMLToken(kind, index, 'used')
     if self.tokenizer.current_token == '[':
       self.process('[')
       self.compileExpression()
@@ -190,13 +209,7 @@ class CompilationEngine:
   def compileDo(self):
     self.output_file.write('<doStatement>\n')
     self.process('do')
-    self.printXMLToken()
-    if self.tokenizer.current_token == '.':
-      self.printXMLToken()
-      self.printXMLToken()
-    self.process('(')
-    self.compileExpressionList()
-    self.process(')')
+    self.compileTerm()
     self.process(';')
     self.output_file.write('</doStatement>\n')
   
@@ -219,22 +232,30 @@ class CompilationEngine:
   def compileTerm(self):
     self.output_file.write('<term>\n')
     if self.tokenizer.tokenType() == 'IDENTIFIER':
-      self.printXMLToken()
+      self.tokenizer.peek()
+      kind = ''
+      if self.tokenizer.next_token == '.':
+        kind = 'class'
+      elif self.tokenizer.next_token == '(':
+        kind = 'subroutine'
+      elif self.tokenizer.next_token == '[':
+        kind = self.symbol_table.kindOf(self.tokenizer.current_token)
+      self.printXMLToken(kind, None, 'used')
       if self.tokenizer.current_token == '.':
         self.printXMLToken()
-        self.printXMLToken()
+        self.printXMLToken('subroutine', None, 'used')
         self.process('(')
         self.compileExpressionList()
         self.process(')')
       elif self.tokenizer.current_token == '(':
-        self.printXMLToken('(')
+        self.process('(')
         self.compileExpressionList()
         self.process(')')
       elif self.tokenizer.current_token == '[':
         self.printXMLToken()
         self.compileExpression()
         self.process(']')
-        
+  
     elif self.tokenizer.current_token == '(':
       self.printXMLToken()
       self.compileExpression()
