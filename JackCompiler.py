@@ -5,12 +5,12 @@ import os
 import argparse
 
 parser = argparse.ArgumentParser(
-    prog="VMTranslator.py",
-    description="Converts VM code to assembly code.",
-    epilog="More information on https://github.com/anasahmd/VMTranslator/",
+    prog="JackCompiler.py",
+    description="Converts Jack program to assembly code.",
+    epilog="More information on https://github.com/anasahmd/JackCompiler/",
 )
 
-parser.add_argument("input_path", help="Input VM File or Folder")
+parser.add_argument("input_path", help="Input Jack File or Folder")
 
 args = parser.parse_args()
 
